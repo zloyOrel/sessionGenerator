@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор сессии — Дума ЧАО</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface2: #22263a;
+            --border: #2e3350;
+            --accent: #4f8ef7;
+            --accent-hover: #3a7be8;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warn: #f59e0b;
+            --text: #e2e8f0;
+            --text-muted: #64748b;
+            --radius: 10px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── HEADER ── */
+        header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header-logo {
+            width: 44px; height: 44px;
+            background: var(--accent);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px;
+        }
+        .header-title { font-size: 17px; font-weight: 700; }
+        .header-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+        /* ── LAYOUT ── */
+        .layout {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            gap: 0;
+            height: calc(100vh - 73px);
+            overflow: hidden;
+        }
+
+        /* ── SIDEBAR (FORM) ── */
+        .sidebar {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-height: 0;
+        }
+
+        .section-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #94a3b8;
+        }
+
+        input[type="text"], select {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 13px;
+            padding: 9px 12px;
+            width: 100%;
+            transition: border-color 0.15s;
+        }
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        input[type="text"].mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ── BTN START ── */
+        #btnStart {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            padding: 13px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.15s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        #btnStart:hover:not(:disabled) { background: var(--accent-hover); }
+        #btnStart:active:not(:disabled) { transform: scale(0.98); }
+        #btnStart:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ── STATUS BAR ── */
+        #statusBar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+        #statusBar.running  { border-color: var(--warn);    color: var(--warn); }
+        #statusBar.success  { border-color: var(--success); color: var(--success); }
+        #statusBar.error    { border-color: var(--error);   color: var(--error); }
+
+        .spinner {
+            width: 14px; height: 14px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: none;
+        }
+        .spinner.visible { display: block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── LOG PANEL ── */
+        .log-panel {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .log-toolbar {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .log-toolbar-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .log-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        .log-dot.running  { background: var(--warn);    animation: pulse 1s infinite; }
+        .log-dot.success  { background: var(--success); }
+        .log-dot.error    { background: var(--error); }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        #btnClearLog {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 12px;
+            padding: 5px 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        #btnClearLog:hover { background: var(--surface2); color: var(--text); }
+
+        #logArea {
+            flex: 1;
+            overflow-y: scroll;
+            padding: 16px 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 1.7;
+            color: #94a3b8;
+            min-height: 0;
+        }
+
+        .log-line { padding: 1px 0; }
+        .log-line.info    { color: #94a3b8; }
+        .log-line.success { color: var(--success); }
+        .log-line.error   { color: var(--error); }
+        .log-line.status  { color: var(--warn); font-weight: 600; }
+        .log-line.section { color: var(--accent); font-weight: 600; }
+
+        /* ── PROGRESS BAR ── */
+        .progress-wrap {
+            height: 3px;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+        #progressBar {
+            height: 100%;
+            width: 0%;
+            background: var(--accent);
+            transition: width 0.3s;
+        }
+        #progressBar.indeterminate {
+            animation: indeterminate 1.5s infinite ease-in-out;
+        }
+        @keyframes indeterminate {
+            0%   { width: 0%;   margin-left: 0%; }
+            50%  { width: 40%;  margin-left: 30%; }
+            100% { width: 0%;   margin-left: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-logo">⚖️</div>
+    <div>
+        <div class="header-title">Генератор сессии</div>
+        <div class="header-sub">Дума Чукотского автономного округа</div>
+    </div>
+</header>
+
+<div class="layout">
+
+    <!-- ── ФОРМА (sidebar) ── -->
+    <aside class="sidebar">
+
+        <!-- Статус -->
+        <div id="statusBar">
+            <div class="spinner" id="spinner"></div>
+            <span id="statusText">Готов к запуску</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Папки -->
+        <div>
+            <div class="section-title">📁 Пути к папкам</div>
+            <div class="form-group">
+                <label>Папка постановлений</label>
+                <input type="text" id="resolutionDir" class="mono"
+                       th:value="${resolutionDir}"
+                       placeholder="/путь/к/Resolutions/">
+            </div>
+            <div class="form-group" style="margin-top:10px">
+                <label>Папка сессии (SessionDay)</label>
+                <input type="text" id="sessionDir" class="mono"
+                       th:value="${sessionDir}"
+                       placeholder="/путь/к/SessionDay/">
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Повестка -->
+        <div>
+            <div class="section-title">📄 Повестка дня</div>
+            <div class="form-group">
+                <label>Файл повестки (.docx)</label>
+                <input type="text" id="agenda" class="mono"
+                       th:value="${agenda}"
+                       placeholder="/путь/к/повестка.docx">
+            </div>
+            <div class="form-group" style="margin-top:10px">
+                <label>Контрольное слово — начало вопросов</label>
+                <input type="text" id="controlWord1"
+                       th:value="${controlWord1}"
+                       placeholder="Например: ПОВЕСТКА ДНЯ">
+            </div>
+            <div class="form-group" style="margin-top:10px">
+                <label>Контрольное слово — конец вопросов</label>
+                <select id="controlWord2">
+                    <option value="Председатель Думы"   th:selected="${controlWord2 == 'Председатель Думы'}">Председатель Думы</option>
+                    <option value="Первый заместитель" th:selected="${controlWord2 == 'Первый заместитель'}">Первый заместитель</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Настройки -->
+        <div>
+            <div class="section-title">⚙️ Настройки</div>
+            <div class="form-group">
+                <label>Типы файлов для конвертации</label>
+                <input type="text" id="filesType"
+                       th:value="${filesType}"
+                       placeholder="doc|docx">
+            </div>
+            <div class="form-group" style="margin-top:10px">
+                <label>Имя выходного HTML-файла</label>
+                <input type="text" id="exportFileName"
+                       th:value="${exportFileName}"
+                       placeholder="index.html">
+            </div>
+            <div class="form-group" style="margin-top:10px">
+                <label>Операционная система сервера</label>
+                <select id="osType">
+                    <option value="Linux"   th:selected="${osType == 'Linux'}">Linux</option>
+                    <option value="Windows" th:selected="${osType == 'Windows'}">Windows</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Кнопка -->
+        <button id="btnStart" onclick="startProcessing()">
+            <span id="btnIcon">▶</span>
+            <span id="btnText">Запустить формирование</span>
+        </button>
+
+    </aside>
+
+    <!-- ── ЛОГ ── -->
+    <div class="log-panel">
+        <div class="progress-wrap">
+            <div id="progressBar"></div>
+        </div>
+        <div class="log-toolbar">
+            <div class="log-toolbar-title">
+                <div class="log-dot" id="logDot"></div>
+                Лог выполнения
+            </div>
+            <button id="btnClearLog" onclick="clearLog()">Очистить</button>
+        </div>
+        <div id="logArea">
+            <div class="log-line info">Заполните параметры и нажмите «Запустить»...</div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let currentJobId = null;
+    let pollInterval = null;
+    let logOffset = 0;
+
+    function startProcessing() {
+        const btn    = document.getElementById('btnStart');
+        const params = {
+            resolutionDir: document.getElementById('resolutionDir').value.trim(),
+            sessionDir:    document.getElementById('sessionDir').value.trim(),
+            filesType:     document.getElementById('filesType').value.trim(),
+            agenda:        document.getElementById('agenda').value.trim(),
+            controlWord1:  document.getElementById('controlWord1').value.trim(),
+            controlWord2:  document.getElementById('controlWord2').value.trim(),
+            osType:        document.getElementById('osType').value,
+            exportFileName:document.getElementById('exportFileName').value.trim()
+        };
+
+        // Валидация
+        if (!params.resolutionDir || !params.sessionDir || !params.agenda) {
+            setStatus('error', '⚠ Заполните обязательные поля: папки и повестка');
+            return;
+        }
+
+        // Сброс лога
+        clearLog();
+        logOffset = 0;
+        currentJobId = null;
+
+        // UI в режим ожидания
+        btn.disabled = true;
+        document.getElementById('btnText').textContent = 'Выполняется...';
+        document.getElementById('btnIcon').textContent = '⏳';
+        setStatus('running', 'Запуск обработки...');
+        setProgress('indeterminate');
+        setLogDot('running');
+
+        // Запуск задачи
+        const body = new URLSearchParams(params);
+        fetch('/api/start', { method: 'POST', body })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    onFailed(data.error);
+                    return;
+                }
+                currentJobId = data.jobId;
+                addLog('Задача запущена: ' + currentJobId, 'status');
+                startPolling();
+            })
+            .catch(err => onFailed('Ошибка связи с сервером: ' + err.message));
+    }
+
+    function startPolling() {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(() => {
+            if (!currentJobId) return;
+            fetch(`/api/status/${currentJobId}?offset=${logOffset}`)
+                .then(r => r.json())
+                .then(data => {
+                    // Добавляем новые строки лога
+                    (data.lines || []).forEach(line => {
+                        const cls = classifyLine(line);
+                        addLog(line, cls);
+                    });
+                    logOffset = data.logOffset || logOffset;
+
+                    // Обновляем статус
+                    if (data.status) {
+                        setStatus(data.failed ? 'error' : (data.completed ? 'success' : 'running'),
+                                  data.status);
+                    }
+
+                    // Завершение
+                    if (data.done) {
+                        clearInterval(pollInterval);
+                        pollInterval = null;
+                        if (data.failed) {
+                            onFailed(data.error || 'Неизвестная ошибка');
+                        } else {
+                            onSuccess();
+                        }
+                    }
+                })
+                .catch(err => {
+                    addLog('Ошибка опроса статуса: ' + err.message, 'error');
+                });
+        }, 800);
+    }
+
+    function onSuccess() {
+        setStatus('success', '✅ Готово! Сессия сформирована.');
+        setProgress('done');
+        setLogDot('success');
+        resetBtn();
+        addLog('=== Обработка завершена успешно ===', 'success');
+        scrollLogToBottom();
+    }
+
+    function onFailed(msg) {
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        setStatus('error', '❌ Ошибка: ' + msg);
+        setProgress('reset');
+        setLogDot('error');
+        resetBtn();
+        addLog('=== ПРОЦЕСС ПРЕРВАН: ' + msg + ' ===', 'error');
+        scrollLogToBottom();
+    }
+
+    function resetBtn() {
+        const btn = document.getElementById('btnStart');
+        btn.disabled = false;
+        document.getElementById('btnText').textContent = 'Запустить формирование';
+        document.getElementById('btnIcon').textContent = '▶';
+    }
+
+    // ── Утилиты ──────────────────────────────────────────────
+
+    function classifyLine(line) {
+        const l = line.toLowerCase();
+        if (l.includes('[ошибка]') || l.includes('ошибка') || l.includes('error')) return 'error';
+        if (l.includes('[статус]') || l.includes('завершён')) return 'status';
+        if (l.includes('===')) return 'section';
+        if (l.includes('успешно') || l.includes('готово') || l.includes('сформирован')) return 'success';
+        return 'info';
+    }
+
+    function addLog(text, cls = 'info') {
+        const area = document.getElementById('logArea');
+        const div = document.createElement('div');
+        div.className = 'log-line ' + cls;
+        div.textContent = timestamp() + ' ' + text;
+        area.appendChild(div);
+        scrollLogToBottom();
+    }
+
+    function clearLog() {
+        document.getElementById('logArea').innerHTML = '';
+    }
+
+    function scrollLogToBottom() {
+        const area = document.getElementById('logArea');
+        area.scrollTop = area.scrollHeight;
+    }
+
+    function timestamp() {
+        const now = new Date();
+        return '[' + now.toTimeString().slice(0, 8) + ']';
+    }
+
+    function setStatus(type, text) {
+        const bar = document.getElementById('statusBar');
+        const spin = document.getElementById('spinner');
+        bar.className = type;
+        document.getElementById('statusText').textContent = text;
+        spin.className = 'spinner' + (type === 'running' ? ' visible' : '');
+    }
+
+    function setLogDot(state) {
+        document.getElementById('logDot').className = 'log-dot ' + state;
+    }
+
+    function setProgress(state) {
+        const bar = document.getElementById('progressBar');
+        if (state === 'indeterminate') {
+            bar.style.width = '';
+            bar.className = 'indeterminate';
+        } else if (state === 'done') {
+            bar.className = '';
+            bar.style.width = '100%';
+            bar.style.background = 'var(--success)';
+        } else if (state === 'reset') {
+            bar.className = '';
+            bar.style.width = '0%';
+            bar.style.background = 'var(--error)';
+        }
+    }
+</script>
+
+</body>
+</html>
